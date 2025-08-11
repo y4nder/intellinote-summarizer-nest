@@ -12,8 +12,9 @@ export class AppController {
   }
 
   @Post("api/generate")
-  generate(@Body() body: GenerationRequest){
-    return body
+  async generate(@Body() body: GenerationRequest){
+    const response = await this.appService.runGenerationPipeline(body.document);
+    return response;
   }
 
   @Post("debug/summarize")

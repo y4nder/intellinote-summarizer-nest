@@ -3,9 +3,14 @@ import OpenAI from 'openai';
 import { OPENAI_INSTANCE } from './open-ai/open-ai.provider';
 import z from 'zod';
 import { zodTextFormat } from "openai/helpers/zod";
+import { GeneratedResponse } from './dto/generated.response';
 
 const KeywordSchema = z.object({
   keywords : z.array(z.string()).length(10)
+})
+
+const TopicSchema = z.object({
+  topics: z.array(z.string())
 })
 
 @Injectable()
@@ -18,6 +23,15 @@ export class AppService {
 
   getHello(): string {
     return 'Hello World!';
+  }
+
+  async runGenerationPipeline(document: string){
+    const summarization = await this.summarizeLargeDocument(document);
+    const keywordExtraction = await this.extractKeywords(summarization + " " + document);
+    const keywords = keywordExtraction!.keywords;
+    const topicExtraction = await this.extractTopics(summarization, keywords);
+    const topics = topicExtraction!.topics;
+    return GeneratedResponse.Create(summarization, keywords, topics);
   }
 
   async debugSummarizer(document:string){
@@ -80,7 +94,7 @@ export class AppService {
 
   private async extractKeywords(document: string){
     const response =  await this.client.responses.parse({
-      model: "gpt-5",
+      model: "gpt-5-nano",
       input: [
         {
           role: "system",
@@ -92,6 +106,27 @@ export class AppService {
       ],
       text: {
         format: zodTextFormat(KeywordSchema, "extracted_keywords")
+      }
+    });
+
+    return response.output_parsed;
+  }
+
+  private async extractTopics(summarized: string, keywords: string[]){
+    const response = await this.client.responses.parse({
+      model: "gpt-5-nano",
+      input: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that generates concise topics."
+        },
+        {
+          role: "user",
+          content: `Keywords: ${keywords.join(", ")} Summary: ${summarized}`
+        }
+      ],
+      text: {
+        format: zodTextFormat(TopicSchema, "extracted_topics")
       }
     });
 
