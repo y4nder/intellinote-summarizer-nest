@@ -7,8 +7,8 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  getHello(): string {
-    return "healthy"
+  getHealth(): string {
+    return "Healthy"
   }
 
   @Post("api/generate")
