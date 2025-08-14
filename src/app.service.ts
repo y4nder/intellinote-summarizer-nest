@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { OPENAI_INSTANCE } from './open-ai/open-ai.provider';
 import z from 'zod';
@@ -15,22 +15,21 @@ const TopicSchema = z.object({
 
 @Injectable()
 export class AppService {
+  private readonly logger = new Logger(AppService.name);
 
   constructor(
     @Inject(OPENAI_INSTANCE)
     private readonly client: OpenAI
   ){}
 
-  getHello(): string {
-    return 'Hello World!';
-  }
-
   async runGenerationPipeline(document: string){
+    this.logger.log(`Running Generation Pipeline with: ${document.substring(0, 10)}... `)
     const summarization = await this.summarizeLargeDocument(document);
     const keywordExtraction = await this.extractKeywords(summarization + " " + document);
     const keywords = keywordExtraction!.keywords;
     const topicExtraction = await this.extractTopics(summarization, keywords);
     const topics = topicExtraction!.topics;
+    this.logger.log(`Finished Generation Pipeline`);
     return GeneratedResponse.Create(summarization, keywords, topics);
   }
 
@@ -39,6 +38,8 @@ export class AppService {
   }
 
   private async summarizeLargeDocument(document: string) {
+    this.logger.log(`Summarizing document`);
+
     const chunkSize = 3000;
     const chunks = this.splitIntoChunks(document, chunkSize);
 
@@ -93,6 +94,7 @@ export class AppService {
   }
 
   private async extractKeywords(document: string){
+    this.logger.log(`Extracting keywords from document`);
     const response =  await this.client.responses.parse({
       model: "gpt-5-nano",
       input: [
@@ -113,6 +115,7 @@ export class AppService {
   }
 
   private async extractTopics(summarized: string, keywords: string[]){
+    this.logger.log(`Extracting Keywords from document`);
     const response = await this.client.responses.parse({
       model: "gpt-5-nano",
       input: [
