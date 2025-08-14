@@ -22,13 +22,18 @@ export class AppService {
     private readonly client: OpenAI
   ){}
 
-  async runGenerationPipeline(document: string){
-    this.logger.log(`Running Generation Pipeline with: ${document.substring(0, 10)}... `)
-    const summarization = await this.summarizeLargeDocument(document);
-    const keywordExtraction = await this.extractKeywords(summarization + " " + document);
+  async runGenerationPipeline(document: string) {
+    this.logger.log(`Running Generation Pipeline with: ${document.substring(0, 10)}...`);
+
+    const [summarization, keywordExtraction, topicExtraction] = await Promise.all([
+      this.summarizeLargeDocument(document),
+      this.extractKeywords(document),
+      this.extractTopics(document),
+    ]);
+
     const keywords = keywordExtraction!.keywords;
-    const topicExtraction = await this.extractTopics(summarization, keywords);
     const topics = topicExtraction!.topics;
+
     this.logger.log(`Finished Generation Pipeline`);
     return GeneratedResponse.Create(summarization, keywords, topics);
   }
@@ -77,11 +82,11 @@ export class AppService {
         {
           role: 'system',
           content:
-            'You are a helpful assistant that summarizes text into a single, concise paragraph of complete sentences. Avoid bullet points or lists.',
+            'You are a helpful assistant that summarizes text into one short paragraph (maximum 3 sentences or 60 words). The summary should only capture the main ideas, leaving out examples, repetitions, and minor details. Avoid bullet points or lists.',
         },
         {
           role: 'user',
-          content: `Summarize the following text into paragraph form:\n\n${chunk}`,
+          content: `Summarize the following text into one short paragraph, keeping it under 3 sentences and no more than 60 words:\n\n${chunk}`,
         },
       ],
     });
@@ -114,18 +119,22 @@ export class AppService {
     return response.output_parsed;
   }
 
-  private async extractTopics(summarized: string, keywords: string[]){
-    this.logger.log(`Extracting Keywords from document`);
+  private async extractTopics(document: string) {
+    this.logger.log(`Extracting Topics from document`);
     const response = await this.client.responses.parse({
       model: "gpt-5-nano",
       input: [
         {
           role: "system",
-          content: "You are a helpful assistant that generates concise topics."
+          content: 
+            "You are a helpful assistant that generates a list of short, concise topics. " +
+            "Each topic must be a noun phrase with no verbs, no full sentences, and fewer than 5 words. " +
+            "Example: 'Climate Change', 'Renewable Energy', 'Artificial Intelligence'. " +
+            "Do not include punctuation except for hyphens when necessary."
         },
         {
           role: "user",
-          content: `Keywords: ${keywords.join(", ")} Summary: ${summarized}`
+          content: `Extract the main topics from the following document:\n\n${document}`
         }
       ],
       text: {
@@ -135,4 +144,5 @@ export class AppService {
 
     return response.output_parsed;
   }
+
 }
